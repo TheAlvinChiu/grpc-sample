@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.grpcsample.grpc";
+option java_outer_classname = "GreetingProto";
+
+package greeting;
+
+service GreetingService {
+  rpc sayHello (HelloRequest) returns (HelloReply) {}
+
+  // 伺服器串流 RPC
+  rpc sayHellosServerStream (HelloRequest) returns (stream HelloReply) {}
+
+  // 客戶端串流 RPC
+  rpc sayHellosClientStream (stream HelloRequest) returns (HelloReply) {}
+
+  // 雙向串流 RPC
+  rpc sayHellosBidirectional (stream HelloRequest) returns (stream HelloReply) {}
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
