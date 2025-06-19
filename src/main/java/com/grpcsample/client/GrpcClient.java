@@ -28,7 +28,7 @@ public class GrpcClient {
     private final GreetingServiceGrpc.GreetingServiceStub asyncStub;
 
     /**
-     * 創建不使用 TLS 的客戶端
+     * Create client without TLS
      */
     public GrpcClient(String host, int port) {
         this(ManagedChannelBuilder.forAddress(host, port)
@@ -40,7 +40,7 @@ public class GrpcClient {
     }
 
     /**
-     * 創建使用 TLS 的客戶端
+     * Create client with TLS
      */
     public GrpcClient(String host, int port, File certFile) throws Exception {
         this(createSecureChannel(host, port, certFile));
@@ -53,7 +53,7 @@ public class GrpcClient {
     }
 
     private static ManagedChannel createSecureChannel(String host, int port, File certFile) throws Exception {
-        // 構建 SSL 上下文，啟用 HTTP/2 ALPN
+        // Build SSL context with HTTP/2 ALPN enabled
         SslContext sslContext = GrpcSslContexts.forClient()
                 .trustManager(certFile)
                 .applicationProtocolConfig(new ApplicationProtocolConfig(
@@ -63,7 +63,7 @@ public class GrpcClient {
                         ApplicationProtocolNames.HTTP_2))
                 .build();
 
-        // 創建 TLS 通道
+        // Create TLS channel
         return NettyChannelBuilder.forAddress(host, port)
                 .sslContext(sslContext)
                 .keepAliveTime(30, TimeUnit.SECONDS)
@@ -77,26 +77,26 @@ public class GrpcClient {
     }
 
     /**
-     * 同步調用 sayHello 方法
+     * Synchronous call to sayHello method
      */
     public String sayHello(String name) {
-        logger.info("發送 sayHello 請求，名稱: {}", name);
+        logger.info("Sending sayHello request, name: {}", name);
         try {
             HelloRequest request = HelloRequest.newBuilder().setName(name).build();
             HelloReply response = blockingStub.sayHello(request);
-            logger.info("收到回應: {}", response.getMessage());
+            logger.info("Received response: {}", response.getMessage());
             return response.getMessage();
         } catch (Exception e) {
-            logger.error("sayHello 調用失敗: {}", e.getMessage(), e);
+            logger.error("sayHello call failed: {}", e.getMessage(), e);
             throw e;
         }
     }
 
     /**
-     * 測試服務端流式 RPC
+     * Test server streaming RPC
      */
     public void testServerStream(String name) {
-        logger.info("測試服務端流式 RPC，名稱: {}", name);
+        logger.info("Testing server streaming RPC, name: {}", name);
         HelloRequest request = HelloRequest.newBuilder().setName(name).build();
 
         final CountDownLatch finishLatch = new CountDownLatch(1);
@@ -106,37 +106,37 @@ public class GrpcClient {
 
             @Override
             public void onNext(HelloReply value) {
-                logger.info("收到服務端串流回應 #{}: {}", responseCount++, value.getMessage());
+                logger.info("Received server stream response #{}: {}", responseCount++, value.getMessage());
             }
 
             @Override
             public void onError(Throwable t) {
-                logger.error("服務端串流錯誤: {}", t.getMessage(), t);
+                logger.error("Server stream error: {}", t.getMessage(), t);
                 finishLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                logger.info("服務端串流完成，共收到 {} 條回應", responseCount);
+                logger.info("Server stream completed, received {} responses", responseCount);
                 finishLatch.countDown();
             }
         });
 
         try {
             if (!finishLatch.await(30, TimeUnit.SECONDS)) {
-                logger.warn("服務端串流超時!");
+                logger.warn("Server stream timeout!");
             }
         } catch (InterruptedException e) {
-            logger.error("等待服務端串流完成時被中斷", e);
+            logger.error("Interrupted while waiting for server stream completion", e);
             Thread.currentThread().interrupt();
         }
     }
 
     /**
-     * 測試客戶端流式 RPC
+     * Test client streaming RPC
      */
     public String testClientStream(List<String> names) {
-        logger.info("測試客戶端流式 RPC，名稱列表: {}", names);
+        logger.info("Testing client streaming RPC, name list: {}", names);
 
         final CountDownLatch finishLatch = new CountDownLatch(1);
         final AtomicReference<String> response = new AtomicReference<>();
@@ -145,20 +145,20 @@ public class GrpcClient {
         StreamObserver<HelloReply> responseObserver = new StreamObserver<HelloReply>() {
             @Override
             public void onNext(HelloReply value) {
-                logger.info("收到客戶端串流回應: {}", value.getMessage());
+                logger.info("Received client stream response: {}", value.getMessage());
                 response.set(value.getMessage());
             }
 
             @Override
             public void onError(Throwable t) {
-                logger.error("客戶端串流錯誤: {}", t.getMessage(), t);
+                logger.error("Client stream error: {}", t.getMessage(), t);
                 error.set(t);
                 finishLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                logger.info("客戶端串流完成");
+                logger.info("Client stream completed");
                 finishLatch.countDown();
             }
         };
@@ -167,46 +167,46 @@ public class GrpcClient {
 
         try {
             for (String name : names) {
-                logger.info("發送客戶端串流請求: {}", name);
+                logger.info("Sending client stream request: {}", name);
                 HelloRequest request = HelloRequest.newBuilder().setName(name).build();
                 requestObserver.onNext(request);
 
-                // 短暫延遲，避免過快發送
+                // Brief delay to avoid sending too quickly
                 Thread.sleep(200);
             }
 
-            logger.info("客戶端完成發送請求");
+            logger.info("Client completed sending requests");
             requestObserver.onCompleted();
 
-            // 等待服務端回應
+            // Wait for server response
             if (!finishLatch.await(30, TimeUnit.SECONDS)) {
-                logger.warn("客戶端串流超時!");
-                return "客戶端串流超時!";
+                logger.warn("Client stream timeout!");
+                return "Client stream timeout!";
             }
 
             if (error.get() != null) {
-                throw new RuntimeException("客戶端串流錯誤", error.get());
+                throw new RuntimeException("Client stream error", error.get());
             }
 
             return response.get();
 
         } catch (InterruptedException e) {
-            logger.error("等待客戶端串流完成時被中斷", e);
+            logger.error("Interrupted while waiting for client stream completion", e);
             Thread.currentThread().interrupt();
             requestObserver.onError(e);
-            return "客戶端串流被中斷: " + e.getMessage();
+            return "Client stream interrupted: " + e.getMessage();
         } catch (Exception e) {
-            logger.error("客戶端串流處理錯誤: {}", e.getMessage(), e);
+            logger.error("Client stream processing error: {}", e.getMessage(), e);
             requestObserver.onError(e);
-            return "客戶端串流錯誤: " + e.getMessage();
+            return "Client stream error: " + e.getMessage();
         }
     }
 
     /**
-     * 測試雙向流式 RPC
+     * Test bidirectional streaming RPC
      */
     public void testBidirectionalStream(List<String> names) {
-        logger.info("測試雙向流式 RPC，名稱列表: {}", names);
+        logger.info("Testing bidirectional streaming RPC, name list: {}", names);
 
         final CountDownLatch finishLatch = new CountDownLatch(1);
 
@@ -215,18 +215,18 @@ public class GrpcClient {
 
             @Override
             public void onNext(HelloReply value) {
-                logger.info("收到雙向串流回應 #{}: {}", responseCount++, value.getMessage());
+                logger.info("Received bidirectional stream response #{}: {}", responseCount++, value.getMessage());
             }
 
             @Override
             public void onError(Throwable t) {
-                logger.error("雙向串流錯誤: {}", t.getMessage(), t);
+                logger.error("Bidirectional stream error: {}", t.getMessage(), t);
                 finishLatch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                logger.info("雙向串流完成，共收到 {} 條回應", responseCount);
+                logger.info("Bidirectional stream completed, received {} responses", responseCount);
                 finishLatch.countDown();
             }
         };
@@ -235,44 +235,54 @@ public class GrpcClient {
 
         try {
             for (String name : names) {
-                logger.info("發送雙向串流請求: {}", name);
+                logger.info("Sending bidirectional stream request: {}", name);
                 HelloRequest request = HelloRequest.newBuilder().setName(name).build();
                 requestObserver.onNext(request);
 
-                // 短暫延遲，避免過快發送
+                // Brief delay to avoid sending too quickly
                 Thread.sleep(500);
             }
 
-            logger.info("客戶端完成發送請求");
+            logger.info("Client completed sending requests");
             requestObserver.onCompleted();
 
-            // 等待服務端完成
+            // Wait for server completion
             if (!finishLatch.await(30, TimeUnit.SECONDS)) {
-                logger.warn("雙向串流超時!");
+                logger.warn("Bidirectional stream timeout!");
             }
 
         } catch (InterruptedException e) {
-            logger.error("等待雙向串流完成時被中斷", e);
+            logger.error("Interrupted while waiting for bidirectional stream completion", e);
             Thread.currentThread().interrupt();
             requestObserver.onError(e);
         } catch (Exception e) {
-            logger.error("雙向串流處理錯誤: {}", e.getMessage(), e);
+            logger.error("Bidirectional stream processing error: {}", e.getMessage(), e);
             requestObserver.onError(e);
         }
     }
 
     /**
-     * 主方法用於測試客戶端
+     * Main method for testing client
      */
     public static void main(String[] args) throws Exception {
         String host = "localhost";
         int port = 50051;
-        boolean useTls = args.length > 0 && "tls".equals(args[0]);
+        String userName = args.length > 0 ? args[0] : "Test User";
+        boolean useTls = args.length > 1 && "tls".equals(args[1]);
 
         GrpcClient client = null;
         try {
             if (useTls) {
                 System.out.println("Creating TLS client...");
+                File certFile = new File("src/main/resources/keystore/grpc-server-cert.pem");
+                if (!certFile.exists()) {
+                    System.err.println("Certificate file not found: " + certFile.getAbsolutePath());
+                    System.err.println("Falling back to plaintext mode");
+                    useTls = false;
+                }
+            }
+            
+            if (useTls) {
                 File certFile = new File("src/main/resources/keystore/grpc-server-cert.pem");
                 client = new GrpcClient(host, port, certFile);
             } else {
@@ -280,23 +290,23 @@ public class GrpcClient {
                 client = new GrpcClient(host, port);
             }
 
-            // 測試同步 sayHello
-            System.out.println("\n=== 測試同步 sayHello ===");
-            String response = client.sayHello("Test User");
+            // Test synchronous sayHello
+            System.out.println("\n=== Testing synchronous sayHello ===");
+            String response = client.sayHello(userName);
             System.out.println("Response from sayHello: " + response);
 
-            // 測試服務端流 RPC
-            System.out.println("\n=== 測試服務端流 RPC ===");
-            client.testServerStream("Test User");
+            // Test server streaming RPC
+            System.out.println("\n=== Testing server streaming RPC ===");
+            client.testServerStream(userName);
 
-            // 測試客戶端流 RPC
-            System.out.println("\n=== 測試客戶端流 RPC ===");
+            // Test client streaming RPC
+            System.out.println("\n=== Testing client streaming RPC ===");
             List<String> clientStreamMessages = List.of("Message 1", "Message 2", "Message 3", "Message 4", "Message 5");
             String clientStreamResponse = client.testClientStream(clientStreamMessages);
             System.out.println("Response from client stream: " + clientStreamResponse);
 
-            // 測試雙向流 RPC
-            System.out.println("\n=== 測試雙向流 RPC ===");
+            // Test bidirectional streaming RPC
+            System.out.println("\n=== Testing bidirectional streaming RPC ===");
             List<String> bidirectionalMessages = List.of("Bidirectional 1", "Bidirectional 2", "Bidirectional 3");
             client.testBidirectionalStream(bidirectionalMessages);
 

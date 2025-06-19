@@ -17,22 +17,22 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
     @Override
     public void sayHello(HelloRequest request, StreamObserver<HelloReply> responseObserver) {
         try {
-            logger.info("收到 sayHello 請求，名稱: {}", request.getName());
+            logger.info("Received sayHello request, name: {}", request.getName());
 
-            // 建立回應
+            // Build response
             HelloReply reply = HelloReply.newBuilder()
-                    .setMessage("你好，" + request.getName() + "! - 後端服務 - A")
+                    .setMessage("Hello, " + request.getName() + "! - Backend Service - A")
                     .build();
 
-            logger.info("發送回應: {}", reply.getMessage());
+            logger.info("Sending response: {}", reply.getMessage());
 
-            // 發送回應
+            // Send response
             responseObserver.onNext(reply);
             responseObserver.onCompleted();
-            logger.info("請求完成: sayHello");
+            logger.info("Request completed: sayHello");
 
         } catch (Exception e) {
-            logger.error("處理請求時發生錯誤", e);
+            logger.error("Error occurred while processing request", e);
             responseObserver.onError(e);
         }
     }
@@ -40,48 +40,48 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
     @Override
     public void sayHellosServerStream(HelloRequest request, StreamObserver<HelloReply> responseObserver) {
         try {
-            logger.info("收到 sayHellosServerStream 請求，名稱: {}", request.getName());
+            logger.info("Received sayHellosServerStream request, name: {}", request.getName());
 
-            // 發送多個回應
+            // Send multiple responses
             for (int i = 0; i < 5; i++) {
                 try {
                     HelloReply reply = HelloReply.newBuilder()
-                            .setMessage("串流回應 #" + i + " 給 " + request.getName())
+                            .setMessage("Stream response #" + i + " for " + request.getName())
                             .build();
 
-                    logger.info("發送串流回應 #{}: {}", i, reply.getMessage());
+                    logger.info("Sending stream response #{}: {}", i, reply.getMessage());
                     responseObserver.onNext(reply);
 
-                    Thread.sleep(200); // 模擬處理延遲
+                    Thread.sleep(200); // Simulate processing delay
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logger.warn("串流處理期間被中斷", e);
+                    logger.warn("Interrupted during stream processing", e);
                     break;
                 } catch (Exception e) {
-                    logger.warn("發送串流回應時發生錯誤", e);
+                    logger.warn("Error occurred while sending stream response", e);
                     break;
                 }
             }
 
-            // 檢查線程是否被中斷
+            // Check if thread was interrupted
             if (!Thread.currentThread().isInterrupted()) {
                 responseObserver.onCompleted();
-                logger.info("請求完成: sayHellosServerStream");
+                logger.info("Request completed: sayHellosServerStream");
             }
 
         } catch (Exception e) {
-            logger.error("處理請求時發生錯誤", e);
+            logger.error("Error occurred while processing request", e);
             try {
                 responseObserver.onError(e);
             } catch (Exception ex) {
-                logger.warn("發送錯誤給客戶端時出現異常", ex);
+                logger.warn("Exception occurred while sending error to client", ex);
             }
         }
     }
 
     @Override
     public StreamObserver<HelloRequest> sayHellosClientStream(StreamObserver<HelloReply> responseObserver) {
-        logger.info("開始 sayHellosClientStream 呼叫");
+        logger.info("Starting sayHellosClientStream call");
 
         return new StreamObserver<HelloRequest>() {
             private final StringBuilder messageCollector = new StringBuilder();
@@ -94,25 +94,25 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
             public void onNext(HelloRequest request) {
                 synchronized (lock) {
                     if (completed || errored) {
-                        logger.info("忽略消息，流已完成或發生錯誤");
+                        logger.info("Ignoring message, stream completed or errored");
                         return;
                     }
 
                     try {
-                        logger.info("收到客戶端串流訊息 #{}: {}", messageCount, request.getName());
-                        // 限制收集的訊息長度，避免記憶體無限增長
-                        if (messageCollector.length() < 8192) { // 限制 8KB
+                        logger.info("Received client stream message #{}: {}", messageCount, request.getName());
+                        // Limit collected message length to avoid unlimited memory growth
+                        if (messageCollector.length() < 8192) { // Limit to 8KB
                             messageCollector.append("[").append(messageCount++).append(": ").append(request.getName()).append("] ");
                         } else {
-                            // 只增加計數但不添加內容
+                            // Only increment count but don't add content
                             messageCount++;
-                            logger.warn("訊息收集器已達到大小限制，只記錄計數");
+                            logger.warn("Message collector reached size limit, only recording count");
                         }
                     } catch (Exception e) {
-                        logger.error("處理消息時出錯", e);
+                        logger.error("Error processing message", e);
                         errored = true;
                         responseObserver.onError(
-                                Status.INTERNAL.withDescription("處理訊息時發生錯誤: " + e.getMessage()).asException()
+                                Status.INTERNAL.withDescription("Error processing message: " + e.getMessage()).asException()
                         );
                     }
                 }
@@ -129,36 +129,36 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
 
                     if (t instanceof StatusRuntimeException &&
                             ((StatusRuntimeException)t).getStatus().getCode() == Status.Code.CANCELLED) {
-                        logger.info("客戶端取消了串流，已處理 {} 個消息", messageCount);
+                        logger.info("Client cancelled stream, processed {} messages", messageCount);
                     } else {
-                        logger.error("客戶端串流錯誤", t);
+                        logger.error("Client stream error", t);
                     }
 
-                    // 如果已經處理了一些消息，可以選擇性地發送部分結果
+                    // If some messages were processed, optionally send partial results
                     if (messageCount > 0) {
                         try {
-                            logger.info("客戶端取消但已處理部分消息，返回部分結果");
+                            logger.info("Client cancelled but partial messages processed, returning partial results");
                             HelloReply reply = HelloReply.newBuilder()
-                                    .setMessage("已處理 " + messageCount + " 個消息 (客戶端已取消): " +
+                                    .setMessage("Processed " + messageCount + " messages (client cancelled): " +
                                             messageCollector.toString())
                                     .build();
                             responseObserver.onNext(reply);
                             responseObserver.onCompleted();
                         } catch (Exception e) {
-                            logger.warn("在客戶端取消後嘗試發送響應時出錯", e);
-                            // 確保流關閉
+                            logger.warn("Error trying to send response after client cancellation", e);
+                            // Ensure stream is closed
                             try {
                                 responseObserver.onCompleted();
                             } catch (Exception ex) {
-                                // 忽略最終的完成異常
+                                // Ignore final completion exception
                             }
                         }
                     } else {
-                        // 確保流在錯誤時關閉
+                        // Ensure stream is closed on error
                         try {
                             responseObserver.onCompleted();
                         } catch (Exception ex) {
-                            // 忽略最終的完成異常
+                            // Ignore final completion exception
                         }
                     }
                 }
@@ -168,35 +168,35 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
             public void onCompleted() {
                 synchronized (lock) {
                     if (completed || errored) {
-                        logger.info("忽略 onCompleted，流已完成或發生錯誤");
+                        logger.info("Ignoring onCompleted, stream already completed or errored");
                         return;
                     }
 
                     completed = true;
-                    logger.info("客戶端完成串流傳送，共接收 {} 個訊息", messageCount);
+                    logger.info("Client completed stream transmission, received {} messages total", messageCount);
 
                     try {
-                        // 檢查收集器大小，避免返回過大的響應
+                        // Check collector size to avoid returning oversized response
                         String collectedMessages = messageCollector.length() > 1024 ?
-                                messageCollector.substring(0, 1024) + "... [訊息過長，已截斷]" :
+                                messageCollector.substring(0, 1024) + "... [message too long, truncated]" :
                                 messageCollector.toString();
 
                         HelloReply reply = HelloReply.newBuilder()
-                                .setMessage("已收到 " + messageCount + " 個訊息: " + collectedMessages)
+                                .setMessage("Received " + messageCount + " messages: " + collectedMessages)
                                 .build();
 
-                        logger.info("發送匯總回應: {}", reply.getMessage());
+                        logger.info("Sending summary response: {}", reply.getMessage());
                         responseObserver.onNext(reply);
                         responseObserver.onCompleted();
-                        logger.info("請求完成: sayHellosClientStream");
+                        logger.info("Request completed: sayHellosClientStream");
                     } catch (Exception e) {
-                        logger.error("發送響應時出錯", e);
+                        logger.error("Error sending response", e);
                         try {
                             responseObserver.onError(
-                                    Status.INTERNAL.withDescription("發送響應時出錯: " + e.getMessage()).asException()
+                                    Status.INTERNAL.withDescription("Error sending response: " + e.getMessage()).asException()
                             );
                         } catch (Exception ex) {
-                            // 忽略最終的錯誤異常
+                            // Ignore final error exception
                         }
                     }
                 }
@@ -206,7 +206,7 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
 
     @Override
     public StreamObserver<HelloRequest> sayHellosBidirectional(StreamObserver<HelloReply> responseObserver) {
-        logger.info("開始 sayHellosBidirectional 呼叫");
+        logger.info("Starting sayHellosBidirectional call");
 
         return new StreamObserver<HelloRequest>() {
             private int messageCount = 0;
@@ -218,22 +218,22 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
             public void onNext(HelloRequest request) {
                 synchronized (lock) {
                     if (completed || errored) {
-                        logger.info("串流已完成或出錯，忽略新的消息");
+                        logger.info("Stream completed or errored, ignoring new message");
                         return;
                     }
 
-                    logger.info("收到雙向串流請求 #{}: {}", messageCount, request.getName());
+                    logger.info("Received bidirectional stream request #{}: {}", messageCount, request.getName());
 
                     try {
                         HelloReply reply = HelloReply.newBuilder()
-                                .setMessage("雙向串流回應 #" + messageCount + " 給 " + request.getName())
+                                .setMessage("Bidirectional stream response #" + messageCount + " for " + request.getName())
                                 .build();
 
-                        logger.info("發送雙向串流回應 #{}: {}", messageCount, reply.getMessage());
+                        logger.info("Sending bidirectional stream response #{}: {}", messageCount, reply.getMessage());
                         responseObserver.onNext(reply);
                         messageCount++;
                     } catch (Exception e) {
-                        logger.warn("在處理訊息時發生錯誤: {}", e.getMessage());
+                        logger.warn("Error occurred while processing message: {}", e.getMessage());
                         errored = true;
                     }
                 }
@@ -250,9 +250,9 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
 
                     if (t instanceof StatusRuntimeException &&
                             ((StatusRuntimeException)t).getStatus().getCode() == Status.Code.CANCELLED) {
-                        logger.info("客戶端取消了雙向串流，處理了 {} 個訊息", messageCount);
+                        logger.info("Client cancelled bidirectional stream, processed {} messages", messageCount);
                     } else {
-                        logger.error("雙向串流錯誤", t);
+                        logger.error("Bidirectional stream error", t);
                     }
                 }
             }
@@ -265,12 +265,12 @@ public class GreetingService extends GreetingServiceGrpc.GreetingServiceImplBase
                     }
 
                     completed = true;
-                    logger.info("雙向串流完成，處理了 {} 個訊息", messageCount);
+                    logger.info("Bidirectional stream completed, processed {} messages", messageCount);
                     try {
                         responseObserver.onCompleted();
-                        logger.info("請求完成: sayHellosBidirectional");
+                        logger.info("Request completed: sayHellosBidirectional");
                     } catch (Exception e) {
-                        logger.warn("完成請求時發生錯誤", e);
+                        logger.warn("Error occurred while completing request", e);
                     }
                 }
             }

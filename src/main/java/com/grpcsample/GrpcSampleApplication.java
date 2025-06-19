@@ -63,30 +63,38 @@ public class GrpcSampleApplication {
             ServerBuilder<?> serverBuilder;
 
             if (tlsEnabled) {
-                // 使用 NettyServerBuilder 支持 TLS
+                // Use NettyServerBuilder to support TLS
                 try {
                     serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress("0.0.0.0", port))
                             .addService(greetingService)
                             .sslContext(tlsConfigHelper.buildServerSslContext())
-                            .intercept(createLoggingInterceptor())  // 添加日誌攔截器
-                            // 增加 KeepAlive 設置
+                            .intercept(createLoggingInterceptor())
                             .keepAliveTime(30, TimeUnit.SECONDS)
                             .keepAliveTimeout(10, TimeUnit.SECONDS)
                             .permitKeepAliveWithoutCalls(true);
 
-                    logger.info("Successfully configured TLS for gRPC server");
+                    logger.info("Successfully configured TLS for gRPC server on port {}", port);
                 } catch (Exception e) {
-                    logger.error("Failed to configure TLS, falling back to plaintext: {}", e.getMessage());
-                    // 如果 TLS 配置失敗，fallback 到明文模式
+                    logger.error("Failed to configure TLS: {}", e.getMessage(), e);
+                    logger.warn("Falling back to plaintext mode due to TLS configuration failure");
+                    // If TLS configuration fails, fallback to plaintext mode and update status
+                    tlsEnabled = false;
                     serverBuilder = ServerBuilder.forPort(port)
                             .addService(greetingService)
-                            .intercept(createLoggingInterceptor());
+                            .intercept(createLoggingInterceptor())
+                            .keepAliveTime(30, TimeUnit.SECONDS)
+                            .keepAliveTimeout(10, TimeUnit.SECONDS)
+                            .permitKeepAliveWithoutCalls(true);
                 }
             } else {
-                // 明文模式
+                // Plaintext mode
+                logger.info("Configuring gRPC server in plaintext mode on port {}", port);
                 serverBuilder = ServerBuilder.forPort(port)
                         .addService(greetingService)
-                        .intercept(createLoggingInterceptor());
+                        .intercept(createLoggingInterceptor())
+                        .keepAliveTime(30, TimeUnit.SECONDS)
+                        .keepAliveTimeout(10, TimeUnit.SECONDS)
+                        .permitKeepAliveWithoutCalls(true);
             }
 
             server = serverBuilder.build();
@@ -95,7 +103,7 @@ public class GrpcSampleApplication {
             logger.info("gRPC Server started successfully on port {} with TLS {}",
                     port, tlsEnabled ? "enabled" : "disabled");
 
-            // 添加關閉掛鉤
+            // Add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutting down gRPC server");
                 try {
@@ -114,7 +122,7 @@ public class GrpcSampleApplication {
                     String methodName = call.getMethodDescriptor().getFullMethodName();
                     String peerAddress = String.valueOf(call.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR));
 
-                    logger.info("接收請求: method={}, peer={}", methodName, peerAddress);
+                    logger.info("Received request: method={}, peer={}", methodName, peerAddress);
 
                     // 打印所有頭部信息
                     for (String key : headers.keys()) {
@@ -128,19 +136,19 @@ public class GrpcSampleApplication {
                             next.startCall(call, headers)) {
                         @Override
                         public void onMessage(ReqT message) {
-                            logger.debug("接收到消息: {}", message);
+                            logger.debug("Received message: {}", message);
                             super.onMessage(message);
                         }
 
                         @Override
                         public void onCancel() {
-                            logger.info("客戶端取消請求: method={}, peer={}", methodName, peerAddress);
+                            logger.info("Client cancelled request: method={}, peer={}", methodName, peerAddress);
                             super.onCancel();
                         }
 
                         @Override
                         public void onComplete() {
-                            logger.info("請求完成: method={}, peer={}", methodName, peerAddress);
+                            logger.info("Request completed: method={}, peer={}", methodName, peerAddress);
                             super.onComplete();
                         }
                     };
@@ -150,7 +158,7 @@ public class GrpcSampleApplication {
 
         private void stop() throws InterruptedException {
             if (server != null) {
-                // 優雅關閉
+                // Graceful shutdown
                 server.shutdown();
                 boolean terminated = server.awaitTermination(30, TimeUnit.SECONDS);
                 if (!terminated) {
