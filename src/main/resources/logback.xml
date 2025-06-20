@@ -16,6 +16,12 @@
 
     <!-- gRPC 詳細日誌 -->
     <logger name="io.grpc" level="DEBUG" />
+    
+    <!-- 隱藏 census stats 警告訊息 -->
+    <logger name="io.grpc.internal.ServerImplBuilder" level="INFO" />
+    
+    <!-- 隱藏 Epoll/Nio 平台相關訊息 -->
+    <logger name="io.grpc.netty.shaded.io.grpc.netty.Utils" level="INFO" />
 
     <!-- Netty 詳細日誌 -->
     <logger name="io.grpc.netty" level="DEBUG" />
